@@ -1,0 +1,306 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<!DOCTYPE Rule PUBLIC "sailpoint.dtd" "sailpoint.dtd">
+<Rule language="beanshell" name="Constellation_Joiner_Library">
+  <Source><![CDATA[
+
+/*
+ * Copyright (c) 2022 Exelon - All Rights Reserved
+ * JoinerRuleLibraryUtil.java
+ * Created on Jan 10, 2022 12:30:00 PM
+ * @version : $Revision:1.0
+ *
+ * Modification History:
+ * DATE              AUTHOR           VER     CHANGE
+ * -------------     ------------     ---     --------------
+ * Jan 10, 2022      Ashish Patel     1.0     Initial Version.
+ */
+
+  
+    import sailpoint.object.Identity;
+	import java.sql.Connection;
+    import java.sql.Driver;
+    import java.sql.PreparedStatement;
+    import java.sql.ResultSet;
+    import java.sql.SQLException;
+    import java.sql.DriverManager;
+	import java.util.Date;
+	import java.text.Normalizer;
+
+
+    /**
+	 * Generate the employeeId as per employeeType
+	 * 
+	 * @param identityName
+	 * @return - EmployeeId
+	 * 
+	 */
+    public String getUserId(String identityName) {
+
+        String userId = "";
+        Identity id = context.getObjectByName(Identity.class, identityName);
+       
+        if (null != id) {        
+            String empType = id.getAttribute("perOrg");
+            String empId = id.getAttribute("employeeId");
+
+            if (null != empType && null != empId) {
+                if ("Emp".equalsIgnoreCase(empType)) {
+                    log.debug("Inside EMP condition");
+                    userId = "E" + empId;
+                    id.setAttribute("UserId", userId);
+                } else if ("CWK".equalsIgnoreCase(empType)) {
+                    userId = "C" + empId;
+                    id.setAttribute("UserId", userId);
+                }
+                context.saveObject(id);
+                context.commitTransaction();
+            }
+        }
+        return userId;
+    }
+
+    /**
+     * Checks if the email is already present or not in the email lookup history table
+     * 
+     * @param url
+     * @param username
+     * @param password
+     * @param generatedemail
+     * @return - boolean true or false
+     * 
+     */
+    public Boolean checkIfEmailPresentInHistory(String url, String username, String password, String generatedemail) {
+        Boolean isPresentInHistory = false;
+
+        Class.forName("com.mysql.jdbc.Driver");
+        Connection con = null;
+        PreparedStatement ps = null;
+        ResultSet rs = null;
+
+        con = DriverManager.getConnection(url, username, password);
+        String sql = "select count(*) from [emailgeneration].[dbo].[EMAIL_LOOKUP_HISTORY] where EMAIL='" + generatedemail + "';";
+        ps = con.prepareStatement(sql);
+        rs = ps.executeQuery();
+        
+        int numberOfRowsInHistory = 0;
+        
+        if (rs.next()) {
+            numberOfRowsInHistory = rs.getInt(1);
+            log.debug("numberOfRowsInHistory= " + numberOfRowsInHistory);
+            if (numberOfRowsInHistory != 0) {
+                isPresentInHistory = true;
+            }
+        }
+        if (rs != null) {
+            try {
+                rs.close();
+            } catch (SQLException e) {}
+        }
+        if (ps != null) {
+            try {
+                ps.close();
+            } catch (SQLException e) {}
+        }
+        if (con != null) {
+            try {
+                con.close();
+            } catch (SQLException e) {}
+        }
+        return isPresentInHistory;
+    }
+
+    /**
+     * Fetch the email value as per employeeID from the email lookup history table
+     * 
+     * @param url
+     * @param username
+     * @param password
+     * @param empId
+     * @return - Email
+     * 
+     */
+    public String getEmailPresentInHistory(String url, String username, String password, String empId) {
+        Boolean isPresentInHistory = false;
+
+        Class.forName("com.mysql.jdbc.Driver");
+        Connection con = null;
+        PreparedStatement ps = null;
+        ResultSet rs = null;
+        String email = "";
+        
+        con = DriverManager.getConnection(url, username, password);
+        String sql = "select EMAIL from email_lookup_history where EMPLOYEE_ID='" + empId + "';";
+        ps = con.prepareStatement(sql);
+        rs = ps.executeQuery();
+        int numberOfRowsInHistory = 0;
+        
+        while (rs.next()) {
+            email = rs.getString("EMAIL") != null ? rs.getString("EMAIL") : "";
+
+        }
+        if (rs != null) {
+            try {
+                rs.close();
+            } catch (SQLException e) {}
+        }
+        if (ps != null) {
+            try {
+                ps.close();
+            } catch (SQLException e) {}
+        }
+        if (con != null) {
+            try {
+                con.close();
+            } catch (SQLException e) {}
+        }
+        return email;
+    }
+
+    /**
+     * Checks if the email is already present or not in the email lookup table
+     * 
+     * @param url
+     * @param username
+     * @param password
+     * @param generatedemail
+     * @return - boolean true or false
+     * 
+     */
+    public Boolean checkIfEmailPresentInLookUpTable(String url, String username, String password, String generatedemail) {
+        log.debug("checkIfEmailPresentInLookUpTable");
+        Boolean isPresentInLookup = false;
+        Class.forName("com.mysql.jdbc.Driver");
+        Connection con = null;
+        PreparedStatement ps = null;
+        ResultSet rs = null;
+
+        con = DriverManager.getConnection(url, username, password);
+        String sql = "select count(*) from  [emailgeneration].[dbo].[EMAIL_LOOKUP] where EMAIL='" + generatedemail + "';";
+        log.error("SQL!!!" + sql);
+        ps = con.prepareStatement(sql);
+        rs = ps.executeQuery();
+        int numberOfRowsInLookup = 0;
+        
+        if (rs.next()) {
+            numberOfRowsInLookup = rs.getInt(1);
+            log.debug("numberOfRowsInLookup= " + numberOfRowsInLookup);
+            if (numberOfRowsInLookup != 0) {
+                isPresentInLookup = true;
+            }
+        }
+
+        return isPresentInLookup;
+    }
+    
+
+    /**
+     * Insert the email value into the email lookup and email lookup history table
+     * 
+     * @param url
+     * @param username
+     * @param password
+     * @param generatedemail
+     * @param empId
+     * @param fname
+     * @return - boolean true or false
+     * 
+     */
+    public Boolean insertEmailToLookup(String url, String username, String password, String generatedemail, String empId, String fname) {
+        log.debug("checkIfEmailPresentInLookUpTable");        
+        Boolean isInserted = false;
+        Class.forName("com.mysql.jdbc.Driver");
+        Connection con = null;
+        PreparedStatement ps = null;
+        ResultSet rs = null;
+
+        Date date = new Date();
+
+        java.sql.Date dt = new java.sql.Date(date.getTime());
+        con = DriverManager.getConnection(url, username, password);
+
+        String sql = "INSERT INTO email_lookup (EMAIL, EMPLOYEE_ID,USER_ID, FULL_NAME,CREATED_DATE,CREATED_BY,MODIFIED_DATE,MODIFIED_BY) VALUES (?, ?, ?,?, ?, ?,?, ?)";
+        ps = con.prepareStatement(sql);
+        ps.setString(1, generatedemail);
+        ps.setString(2, empId);
+        ps.setString(3, username);
+        ps.setString(4, fname);
+        ps.setDate(5, dt);
+        ps.setString(6, "SailPoint");
+        ps.setDate(7, dt);
+        ps.setString(8, "SailPoint");
+
+        int i = ps.executeUpdate();
+
+        String sql_history = "INSERT INTO email_lookup_history (EMAIL, EMAIL_TAKEN, CREATED_DATE,CREATED_BY,MODIFIED_DATE, MODIFIED_BY) VALUES (?, ?, ?,?, ?, ?)";
+        ps = con.prepareStatement(sql_history);
+        ps.setString(1, generatedemail);
+        ps.setBoolean(2, true);
+        ps.setDate(3, dt);
+        ps.setString(4, "SailPoint");
+        ps.setDate(5, dt);
+        ps.setString(6, "SailPoint");
+        int value = ps.executeUpdate();
+        if (value > 0) {
+            isInserted = true;
+        }
+
+        return isInserted;
+    }
+    
+
+    /**
+     * Removes all the accented characters from the input string
+     * 
+     * @param accented
+     * @return - nonAccented The String with all non accented characters removed
+     * 
+     */
+
+    public static String removeAccentsFromString(String accented) {
+        Objects.requireNonNull(accented, "Input can't be null");
+        String nonAccented = null;
+
+        try {
+            nonAccented = Normalizer.normalize(accented, Normalizer.Form.NFKD);
+            nonAccented = nonAccented.replaceAll("[^\\p{ASCII}]", "");
+        } catch (Exception e) {
+             log.error("Error in removeAccentsFromString "+e.getMessage());
+            throw e;
+        }
+
+        return nonAccented;
+    }
+    
+
+    /**
+     * Method to remove all invalid expressions from a String during samaccount name
+     * generation
+     *
+     * @param str The original String
+     * @param pipedExpression A piped regex containing all the invalid expressions
+     * Eg. mr|mrs
+     * @return strUpdated The string with all expressions and invalid characters
+     * removed
+     */
+
+    public static String removeInvalidExpressionsFromString(String str, String pipedExpression) {
+
+        Objects.requireNonNull(str, "Input can't be null");
+        Objects.requireNonNull(pipedExpression, "Input can't be null");
+
+        String strUpdated = null;
+        try {
+
+            str = str.replaceAll("(?i)\\s{2,}", " ").trim();
+            str = str.replaceAll(pipedExpression, "").trim();
+            strUpdated = str;
+            strUpdated = strUpdated.replaceAll("(?i)\\W", "").trim();
+
+        } catch (Exception e) {
+            log.error("Error in removeInvalidExpressionsFromString "+e.getMessage());
+            throw e;
+        }
+        return strUpdated;
+    }	
+  ]]></Source>
+</Rule>
