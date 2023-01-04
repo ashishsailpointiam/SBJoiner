@@ -35,32 +35,28 @@
       </Argument>
     </Returns>
   </Signature>
-  <Source><![CDATA[import sailpoint.object.Identity;
+  <Source><![CDATA[
+import sailpoint.object.Identity;
 import sailpoint.tools.Util;
-
 
 //Check for PreviousIdentity and NewIdenttiy objects
 if (previousIdentity == null || newIdentity == null) {
-return false;
+    return false;
 }
 
 //Define Joiner workflow launch default to "False"
 boolean launchWorkflow = false;
 
-
 //Check for "needsJoiner" Identity Attribute
 String needsJoiner = newIdentity.getAttribute("needsJoiner");
 
-
-if (null != needsJoiner) {
-	
-if (needsJoiner.equalsIgnoreCase("True")) {
-	
-//Per Joiner Requirement:If needsJoiner is "True" then Launch the Joiner Workflow
-launchWorkflow = true;
+if (Util.isNotNullOrEmpty(needsJoiner)) {
+    if (needsJoiner.equalsIgnoreCase("True")) {
+        //Per Joiner Requirement:If needsJoiner is "True" then Launch the Joiner Workflow
+        launchWorkflow = true;
+    }
 }
 
-}
-
-return launchWorkflow;]]></Source>
+return launchWorkflow;
+]]></Source>
 </Rule>
