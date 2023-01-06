@@ -1,0 +1,442 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<!DOCTYPE Workflow PUBLIC "sailpoint.dtd" "sailpoint.dtd">
+<Workflow created="1672962870495" explicitTransitions="true" id="0a341a24856112398185845b8cdf7b74" libraries="Identity" modified="1672966694742" name="Constellation_Workflow_Joiner" type="IdentityLifecycle">
+  <Variable input="true" name="trigger">
+    <Description>The IdentityTrigger</Description>
+  </Variable>
+  <Variable input="true" name="newEmail">
+    <Description>New generated email</Description>
+  </Variable>
+  <Variable input="true" name="decryptPassword">
+    <Description>AD Decrypt Password</Description>
+  </Variable>
+  <Variable input="true" name="event" transient="true">
+    <Description>
+      The IdentityChangeEvent.  It can be used to build
+      the provisioning plan, but does not need to be
+      persisted with the case, so marked as transient.
+    </Description>
+  </Variable>
+  <Variable initializer="true" input="true" name="doRefresh">
+    <Description>
+      Set to true to cause an identity refresh after the changes in the plan
+      have been provisioned.  This is normally off, you might want this on
+      if you want modification of identity or link attributes to result in
+      an immediate re-evaluation of assigned and detected roles.
+    </Description>
+  </Variable>
+  <Variable input="true" name="identityName">
+    <Description>The name of the identity.</Description>
+  </Variable>
+  <Variable name="userId">
+    <Description>The userId of the identity.</Description>
+  </Variable>
+  <Variable editable="true" name="plan"/>
+  <Variable initializer="true" name="trace"/>
+  <Description>Process a new employee.</Description>
+  <RuleLibraries>
+    <Reference class="sailpoint.object.Rule" id="0a341a2484bf11bb81852c66b4aa3dbe" name="Constellation_RuleLibrary_ADFieldValue"/>
+    <Reference class="sailpoint.object.Rule" id="0a341a24856112398185845b50127b6c" name="Constellation_Joiner_Library"/>
+  </RuleLibraries>
+  <Step icon="Start" name="Start" posX="28" posY="10">
+    <Transition to="UserId generation"/>
+  </Step>
+  <Step icon="Message" name="UserId generation" posX="148" posY="10" resultVariable="userId">
+    <Description>Process the user that joined.</Description>
+    <Script>
+      <Source>
+    log.info("New user was entered the system: " + event.getObject().getDisplayableName());
+
+    if (null != identityName) {
+        String userId = getUserId(identityName);
+        return userId;
+    }
+      </Source>
+    </Script>
+    <Transition to="EmailId Generation"/>
+  </Step>
+  <Step name="EmailId Generation" resultVariable="newEmail">
+    <Script>
+      <Source>
+    import sailpoint.object.Identity;
+    import sailpoint.tools.GeneralException;
+    import sailpoint.tools.Util;
+
+    public static final String InvalidEmailExpessions = "(?i)\\s(esq|" +
+        "esquire|jr|sr|2|i|ii|iii|iv|v|clu|chfc|cfp|md|phd|cpa|cea|dd|jd|dr|doctor|miss|misse" +
+        "s|mr|mister|mrs|ms|judge|sir|madam|madame|ab|2ndlt|amn|1stlt|a1c|capt|sra|maj|ssgt|l" +
+        "tcol|tsgt|col|briggen|1stsqt|majgen|smsgt|ltgen|gen|cmsgt|ccmsgt|cmsaf|pvt|2lt|pv2|1" +
+        "lt|pfc|cpt|spc|cpl|tc|sgt|ssg|bg|sfc|mg|msg|ltg|1sgt|sgm|csm|sma|wo1|wo2|wo3|wo4|wo5" +
+        "|ens|sa|ltjg|sn|lt|po3|lcdr|po2|cdr|po1|cpo|radm|\\(lh\\)|lh|scpo|\\(uh\\)|mcpo|vadm" +
+        "|mcpoc|adm|mpco-cg|cwo-2|cwo-3|cwo-4|cwo-5|lcp1|gysgt|bgen|msgt|mgysqt|sgtmaj|sgtmaj" +
+        "mc|wo-1|rdml|mcpon|fadm|cwo2|cwo3|cwo4|cwo5)\\.?$";
+
+    Identity id = context.getObjectByName(Identity.class, identityName);
+    log.debug("Id: " + id);
+    
+    String generatedemail = "";
+    String emailCombination = "";
+    String suffix = "@constellation.com";
+
+    if (null != id) {
+        String empId = id.getAttribute("employeeId");
+        String fname = id.getFirstname();
+        String lname = id.getLastname();
+
+        log.debug("entering in joiner workflow!!!");
+
+        if (Util.isAnyNullOrEmpty(lname)) {
+            lname = "";
+        } else {
+            // removing all whitespaces, invalid words and accented characters from the name attributes
+            lname = removeAccentsFromString(lname);
+            lname = removeInvalidExpressionsFromString(lname.trim(), InvalidEmailExpessions);
+            lname = lname.substring(0, 1).toUpperCase() + lname.substring(1);
+        }
+        if (Util.isAnyNullOrEmpty(fname)) {
+            fname = "";
+        } else {
+            fname = removeAccentsFromString(fname);
+            fname = removeInvalidExpressionsFromString(fname.trim(), InvalidEmailExpessions);
+            fname = fname.substring(0, 1).toUpperCase() + fname.substring(1);
+        }
+
+        if (Util.isNotNullOrEmpty(fname) &amp;&amp; Util.isNotNullOrEmpty(lname)) {
+            emailCombination = fname + "." + lname;
+        } else if (fname.isEmpty()) {
+            emailCombination = lname;
+        } else if (lname.isEmpty()) {
+            emailCombination = fname;
+        }
+
+        log.debug("emailCombination: " + emailCombination);
+        
+        if (null != emailCombination) {
+            generatedemail = emailCombination + suffix;
+        }
+
+        log.debug("generatedemail: " + generatedemail);
+
+        //String url = "%%EMAIL_GENERATION_DB_URL%%";
+		
+        //String username = "%%EMAIL_GENERATION_DB_USERNAME%%";
+        //String password = "%%EMAIL_GENERATION_DB_PASSWORD%%";
+		
+		String url = "jdbc:sqlserver://SAILDBD-001.corp.constellation.com:51818;databaseName=emailgeneration;encrypt=false";
+		String username = "constellationiganonscadadev";
+        String password = "fi1ax0X5trez@w8Afr9t";
+        
+        log.debug("Before calling checkIfEmailPresentInHistory: ");
+        
+        Boolean isPresentInHistory = checkIfEmailPresentInHistory(url, username, password, empId);
+        log.debug("isPresentInHistory: " + isPresentInHistory);
+        
+        Boolean isPresentInLookup = false;
+
+        if (!isPresentInHistory) {
+            isPresentInLookup = checkIfEmailPresentInLookUpTable(url, username, password, generatedemail);
+
+            if (!isPresentInLookup) {
+                System.out.println("Insert emailToLookup" + isPresentInLookup);
+                insertEmailToLookup(url, username, password, generatedemail, empId, fname);
+            } else {
+                int count = 0;
+                while (isPresentInLookup) {
+                    count = count + 1;
+                    String newEmailGenerated = "";
+                    
+                    newEmailGenerated = emailCombination + count;
+                    generatedemail = newEmailGenerated + suffix;
+                    log.debug("generatedemail--" + generatedemail);
+                    
+                    isPresentInLookup = checkIfEmailPresentInLookUpTable(url, username, password, generatedemail);
+                }
+
+                log.debug("generatedemail" + generatedemail);
+                
+                if (!isPresentInLookup) {
+                    insertEmailToLookup(url, username, password, generatedemail, empId, fname);
+                }
+            }
+
+        } else {
+            generatedemail = getEmailPresentInHistory(url, username, password, empId);
+            log.debug("email present in lookup table" + generatedemail);
+        }
+
+    }
+    return generatedemail;      
+	  </Source>
+    </Script>
+    <Transition to="setEmailAttribute"/>
+  </Step>
+  <Step name="setEmailAttribute" posX="208" posY="160">
+    <Script>
+      <Source>
+    Identity identity = context.getObjectByName(Identity.class, identityName);
+    identity.setEmail(newEmail);
+
+    context.saveObject(identity);
+    context.commitTransaction();
+	  </Source>
+    </Script>
+    <Transition to="preparePlan"/>
+  </Step>
+  <Step name="preparePlan" posX="148" posY="10" resultVariable="plan" wait="0">
+    <Description>Process the user that joined.</Description>
+    <Script>
+      <Source>
+    import sailpoint.api.ObjectUtil;
+    import sailpoint.object.Identity;
+    import sailpoint.object.ProvisioningPlan;
+    import sailpoint.object.ProvisioningPlan.AccountRequest;
+
+    sailpoint.object.ProvisioningPlan customPlan = new sailpoint.object.ProvisioningPlan();
+    List customAccReqList = new ArrayList();
+    
+    Identity identityObject = context.getObjectByName(Identity.class, identityName);
+
+    //String firstName = identityObject.getFirstname();
+    //String lastName = identityObject.getLastname();
+
+    sailpoint.object.ProvisioningPlan.AccountRequest acctReq = new sailpoint.object.ProvisioningPlan.AccountRequest();
+    acctReq.setOp(sailpoint.object.ProvisioningPlan.ObjectOperation.Create);
+    acctReq.setApplication("Constellation AD Non-Prod");
+
+	String disName = getDistinguishedName(identityObject);
+    // Set the minimum AD attributes to create an account
+    //String disName = "CN=" + lastName + "\\" + "," + " " + firstName + ",OU=Disabled Inactive Users,OU=T2-Accounts,OU=Tier 2,OU=Admin,DC=exconnectdev,DC=com";
+
+    //acctReq.add(new AttributeRequest("ObjectType", "User"));
+    //acctReq.add(new AttributeRequest("employeeID", identityObject.getAttribute("employeeId")));
+
+    //acctReq.add(new AttributeRequest("distinguishedName", disName));
+
+    //acctReq.setNativeIdentity("CN=" + lastName + "\\" + "," + " " + firstName + ",OU=Disabled Inactive Users,OU=T2-Accounts,OU=Tier 2,OU=Admin,DC=exconnectdev,DC=com");
+	//acctReq.setNativeIdentity(disName);
+	
+    //acctReq.add(new AttributeRequest("cn", identityObject.getFirstname()));
+    //acctReq.add(new AttributeRequest("sn", identityObject.getLastname()));
+
+    customAccReqList.add(acctReq);
+    customPlan.setAccountRequests(customAccReqList);
+    customPlan.setIdentity(identityObject);
+
+    return customPlan;	
+      </Source>
+    </Script>
+    <Transition to="compilePlan"/>
+  </Step>
+  <Step action="compileProvisioningProject" icon="Default" name="compilePlan" posX="637" posY="250" resultVariable="project">
+    <Arg name="requireCreateTemplates" value="false"/>
+    <Arg name="requester" value="spadmin"/>
+    <Arg name="identityName" value="ref:identityName"/>
+    <Arg name="noApplicationTemplates" value="false"/>
+    <Arg name="optimisticProvisioning" value="false"/>
+    <Arg name="source" value="UI"/>
+    <Arg name="plan" value="ref:plan"/>
+    <Transition to="Provision"/>
+  </Step>
+  <Step action="provisionProject" icon="Default" name="Provision" posX="847" posY="250">
+    <Arg name="background" value="false"/>
+    <Arg name="project" value="ref:project"/>
+    <Arg name="identityRequestId"/>
+    <Transition to="Refresh Identity"/>
+  </Step>
+  <Step action="call:refreshIdentity" condition="ref:doRefresh" icon="Task" name="Refresh Identity" posX="1028" posY="7">
+    <Arg name="identityName" value="ref:identityName"/>
+    <Arg name="correlateEntitlements" value="true"/>
+    <Arg name="provision" value="true"/>
+    <Arg name="promoteAttributes" value="true"/>
+    <Arg name="promoteManagedAttributes" value="true"/>
+    <Description>
+      Add arguments as necessary to enable refresh features.  Typically you
+      only want this to correlate roles.  Don't ask for provisioning  since that
+      can result in provisioning policies that need to be presented and it's
+      too late for that.  This is only to get role detection and exception
+      entitlements in the cube.
+    </Description>
+    <Transition to="AD Password Retrieval"/>
+  </Step>
+  <Step icon="Email" name="AD Password Retrieval" posX="233" posY="505" resultVariable="decryptPassword">
+    <Arg name="identityName" value="ref:identityName"/>
+    <Script>
+      <Source>
+    import sailpoint.object.Identity;
+    import sailpoint.object.Link;
+    import sailpoint.object.EmailOptions;
+    import sailpoint.object.EmailTemplate;
+    import sailpoint.object.Application;
+    import java.util.ArrayList;
+    import java.util.Map;
+    import java.util.HashMap;
+    import org.apache.commons.logging.Log;
+    import org.apache.commons.logging.LogFactory;
+    import sailpoint.object.Bundle;
+    import sailpoint.object.Filter;
+    import sailpoint.object.QueryOptions;
+    import sailpoint.api.ObjectUtil;
+    import sailpoint.tools.Util;
+
+    Identity identity = context.getObjectByName(Identity.class, identityName);
+
+    if (null != identity) {
+		/*for(Link link : identity.getLinks())
+		{
+		if(link.getApplicationName().equalsIgnoreCase("Constellation AD Non-Prod")) {
+		String encryptPassword = (String)link.getAttribute(password);
+		String decryptPassword = context.decrypt(encryptPassword);
+		return decryptPassword;
+		}}*/
+        
+    String encryptPassword = identity.getPassword();
+		String decryptPassword = context.decrypt(encryptPassword);
+        return decryptPassword;
+	
+        }
+		
+	   </Source>
+    </Script>
+    <Transition to="Email networkID and emailID Manager Notification"/>
+  </Step>
+  <Step icon="Email" name="Email networkID and emailID Manager Notification" posX="233" posY="505">
+    <Arg name="identityName" value="ref:identityName"/>
+    <Script>
+      <Source>
+    import sailpoint.object.Identity;
+    import sailpoint.object.Link;
+    import sailpoint.object.EmailOptions;
+    import sailpoint.object.EmailTemplate;
+    import sailpoint.object.Application;
+    import java.util.ArrayList;
+    import java.util.Map;
+    import java.util.HashMap;
+    import org.apache.commons.logging.Log;
+    import org.apache.commons.logging.LogFactory;
+    import sailpoint.object.Bundle;
+    import sailpoint.object.Filter;
+    import sailpoint.object.QueryOptions;
+    import sailpoint.api.ObjectUtil;
+    import sailpoint.tools.Util;
+
+    Identity identity = context.getObjectByName(Identity.class, identityName);
+
+
+    if (null != identity) {
+        if (identity.getManager() == null) {
+            log.error("no manager found for " + identityName);
+            return;
+        }
+        
+    String firstName = identity.getFirstname();
+    String lastName = identity.getLastname();    
+    String emailTo = "";
+    
+    Identity managerId = identity.getManager();
+        if(null != managerId){
+            emailTo = managerId.getEmail();
+        }    
+
+        String emailTemplateName = "Constellation_Joiner_networkID_emailID_ManagerNotification";
+
+        EmailTemplate template = context.getObjectByName(EmailTemplate.class, emailTemplateName);
+        if (null == template) {
+            log.error("Email Template is Null");
+        }
+        
+        Map emailArgs = new HashMap();
+        emailArgs.put("identity", identity);
+		emailArgs.put("newEmail", newEmail);
+        emailArgs.put("firstName", firstName);
+        emailArgs.put("lastName", lastName);
+
+        EmailOptions emailOptions = new EmailOptions(identity.getManager().getEmail(), emailArgs);
+        
+        emailOptions.setTo(emailTo);
+        
+        if (null != emailOptions) {
+            context.sendEmailNotification(template, emailOptions);
+        }
+    }
+	   </Source>
+    </Script>
+    <Transition to="Email password Manager Notification"/>
+  </Step>
+  <Step icon="Email" name="Email password Manager Notification" posX="233" posY="505">
+    <Arg name="identityName" value="ref:identityName"/>
+    <Script>
+      <Source>
+    import sailpoint.object.Identity;
+    import sailpoint.object.Link;
+    import sailpoint.object.EmailOptions;
+    import sailpoint.object.EmailTemplate;
+    import sailpoint.object.Application;
+    import java.util.ArrayList;
+    import java.util.Map;
+    import java.util.HashMap;
+    import org.apache.commons.logging.Log;
+    import org.apache.commons.logging.LogFactory;
+    import sailpoint.object.Bundle;
+    import sailpoint.object.Filter;
+    import sailpoint.object.QueryOptions;
+    import sailpoint.api.ObjectUtil;
+    import sailpoint.tools.Util;
+
+    Identity identity = context.getObjectByName(Identity.class, identityName);
+    
+
+    if (null != identity) {
+        if (identity.getManager() == null) {
+            log.warn("no manager found for " + identityName);
+            return;
+        }
+        
+    String firstName = identity.getFirstname();
+    String lastName = identity.getLastname();
+    String emailTo = "";    
+
+    Identity managerId = identity.getManager();
+        if(null != managerId){
+            emailTo = managerId.getEmail();
+        }    
+        
+        
+        String emailTemplateName = "Constellation_Joiner_networkID_emailID_ManagerNotification";
+
+        EmailTemplate template = context.getObjectByName(EmailTemplate.class, emailTemplateName);
+        
+        if (null == template) {
+            log.error("Email Template is Null");
+        }
+        
+        Map emailArgs = new HashMap();
+        emailArgs.put("identity", identity);
+        emailArgs.put("decryptPassword", decryptPassword);
+        emailArgs.put("firstName", firstName);
+        emailArgs.put("lastName", lastName);
+
+        EmailOptions emailOptions = new EmailOptions(identity.getManager().getEmail(), emailArgs);
+        
+        emailOptions.setTo(emailTo);
+        
+        if (null != emailOptions) {
+            context.sendEmailNotification(template, emailOptions);
+        }
+    }
+	   </Source>
+    </Script>
+    <Transition to="setJoinerAttribute"/>
+  </Step>
+  <Step name="setJoinerAttribute" posX="208" posY="160">
+    <Script>
+      <Source>
+    Identity identity = context.getObjectByName(Identity.class, identityName);
+    identity.setAttribute("needsJoiner", "false");
+    context.saveObject(identity);
+    context.commitTransaction();
+	  </Source>
+    </Script>
+    <Transition to="Stop"/>
+  </Step>
+  <Step icon="Stop" name="Stop" posX="268" posY="10"/>
+</Workflow>

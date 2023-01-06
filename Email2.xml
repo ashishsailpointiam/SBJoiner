@@ -1,0 +1,76 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<!DOCTYPE EmailTemplate PUBLIC "sailpoint.dtd" "sailpoint.dtd">
+<EmailTemplate name="Constellation_Joiner_networkID_emailID_ManagerNotification">
+  <Body>
+  
+  <![CDATA[
+
+<html>
+<body>
+
+<p><strong>This is an automated message from the <Exelon branded tool name> System. Please do not reply to this email.</strong></p>
+
+<br>
+
+<ul>
+<li> A person directly reporting to you has been assigned an Exelon network access account and an email account. The account has been successfully created with the details below</li>
+<li> <Beneficiary First Nam/li>e> <Beneficiary Last Name> </li>
+<li> <Beneficiary UserID>.</li>
+<li> Initial Password : </li>
+<li> The initial password must be communicated to the user in a secure manner.</li>
+<li> Password must be at least 8 characters in length and must include a minimum of 3 of the following 4 characteristics:</li>
+<li>-Contain at least one capital letter</li>
+<li>-Contain at least one lower case letter</li>
+<li>-Contain at least one number</li>
+<li>-Contain at least one special character (ex.!@#$%^&*)</li>
+</ul>
+
+<br>
+<p>PLEASE NOTE: THIS USER’S MAILBOX HAS NOT BEEN CREATED YET. IT WILL BE CREATED WITHIN 24 HRS.</p>
+
+<br>
+
+<p>ALSO NOTE: If this user does not require system access to perform their job, please withhold this information from them and submit a request to Disable.  Inactive accounts will be removed during periodic screening.</p>
+<br>
+<br>
+
+<p>To review this request details, click the link below. Should you need assistance, please refer to the <User Onboarding Job Aid link>.</p>
+
+<br>
+
+<p>If you have questions about this request, contact the IT Service Desk at 1-877-9-EXELON</p>
+
+<br>
+
+<p>
+Thank You,
+
+CISS Identity and Access Management Services
+</p> 
+
+ </body>
+ </html>
+]]> 
+
+  </Body>
+  <Description>
+    Email Template for notifying failure of Access Request.
+  </Description>
+  <Signature>
+    <Inputs>
+      <Argument name="identity" type="string">
+        <Description>Identity ID</Description>
+      </Argument>
+      <Argument name="newEmail" type="string">
+        <Description>Email ID</Description>
+      </Argument>
+      <Argument name="firstName" type="string">
+        <Description>First Name</Description>
+      </Argument>
+      <Argument name="lastName" type="string">
+        <Description>Last Name</Description>
+      </Argument>
+    </Inputs>
+  </Signature>
+  <Subject>NEW USER PASSWORD – A New <Exelon branded tool name> NON-NERC User Account Password was created</Subject>
+</EmailTemplate>
